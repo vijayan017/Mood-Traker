@@ -1,0 +1,116 @@
+name: kintsugi
+
+services:
+  mariadb:
+    image: mariadb:10.11
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-kintsugi_root}
+      MARIADB_DATABASE: ${MYSQL_DB:-kintsugi_db}
+      MARIADB_USER: ${MYSQL_USER:-kintsugi}
+      MARIADB_PASSWORD: ${MYSQL_PASSWORD:-kintsugi_pw}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      MYSQL_SERVER: mariadb
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-kintsugi}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-kintsugi_pw}
+      MYSQL_DB: ${MYSQL_DB:-kintsugi_db}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-kintsugi}:${MYSQL_PASSWORD:-kintsugi_pw}@mariadb:3306/${MYSQL_DB:-kintsugi_db}
+      REDIS_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_exports:/app/exports
+    ports:
+      - "8000:8000"
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  celery-worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    command: celery -A app.workers.celery_worker.celery_app worker -Q kintsugi_default,ai,critical --loglevel=info
+    env_file:
+      - ./backend/.env
+    environment:
+      MYSQL_SERVER: mariadb
+      MYSQL_PORT: 3306
+      MYSQL_USER: ${MYSQL_USER:-kintsugi}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-kintsugi_pw}
+      MYSQL_DB: ${MYSQL_DB:-kintsugi_db}
+      DATABASE_URL: mysql+pymysql://${MYSQL_USER:-kintsugi}:${MYSQL_PASSWORD:-kintsugi_pw}@mariadb:3306/${MYSQL_DB:-kintsugi_db}
+      REDIS_URL: redis://redis:6379/1
+      CELERY_BROKER_URL: redis://redis:6379/1
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - backend_uploads:/app/uploads
+      - backend_exports:/app/exports
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+        VITE_WS_BASE_URL: ${VITE_WS_BASE_URL:-ws://localhost:8000/api/v1/ws}
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_started
+
+volumes:
+  mariadb_data:
+  redis_data:
+  backend_uploads:
+  backend_exports:
