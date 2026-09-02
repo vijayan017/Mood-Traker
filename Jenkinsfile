@@ -7,9 +7,6 @@ pipeline {
 
     stages {
 
-        // ==========================================
-        // 1. CREATE ENVIRONMENT FILE
-        // ==========================================
         stage('Create Environment File') {
             steps {
                 echo '======================================'
@@ -39,9 +36,6 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 2. VERIFY DOCKER
-        // ==========================================
         stage('Verify Docker') {
             steps {
                 echo '======================================'
@@ -55,13 +49,10 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 3. VERIFY COMPOSE FILE
-        // ==========================================
         stage('Verify Compose File') {
             steps {
                 echo '======================================'
-                echo ' VERIFYING DOCKER COMPOSE'
+                echo ' VERIFYING DOCKER COMPOSE FILE'
                 echo '======================================'
 
                 bat '"%DOCKER_COMPOSE%" config'
@@ -69,9 +60,6 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 4. BUILD DOCKER IMAGES
-        // ==========================================
         stage('Build Docker Images') {
             steps {
                 echo '======================================'
@@ -83,9 +71,6 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 5. START DATABASE SERVICES
-        // ==========================================
         stage('Start Database Services') {
             steps {
                 echo '======================================'
@@ -99,18 +84,16 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 6. WAIT FOR DATABASE
-        // ==========================================
         stage('Wait for Database') {
             steps {
                 echo '======================================'
                 echo ' WAITING FOR DATABASE'
                 echo '======================================'
 
-                bat '''
-                    echo Waiting 20 seconds for MariaDB and Redis...
-                    timeout /t 20 /nobreak
+                powershell '''
+                    Write-Host "Waiting 20 seconds for MariaDB and Redis..."
+                    Start-Sleep -Seconds 20
+                    Write-Host "Database wait completed."
                 '''
 
                 bat '"%DOCKER_COMPOSE%" ps'
@@ -118,9 +101,6 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 7. CHECK DATABASE
-        // ==========================================
         stage('Check Database') {
             steps {
                 echo '======================================'
@@ -136,9 +116,6 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 8. DATABASE MIGRATION
-        // ==========================================
         stage('Database Migration') {
             steps {
                 echo '======================================'
@@ -160,9 +137,6 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 9. START APPLICATION
-        // ==========================================
         stage('Start Application') {
             steps {
                 echo '======================================'
@@ -178,9 +152,6 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 10. CHECK CONTAINERS
-        // ==========================================
         stage('Check Containers') {
             steps {
                 echo '======================================'
@@ -192,18 +163,16 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 11. WAIT FOR APPLICATION
-        // ==========================================
         stage('Wait for Application') {
             steps {
                 echo '======================================'
                 echo ' WAITING FOR APPLICATION'
                 echo '======================================'
 
-                bat '''
-                    echo Waiting 15 seconds for application...
-                    timeout /t 15 /nobreak
+                powershell '''
+                    Write-Host "Waiting 15 seconds for application..."
+                    Start-Sleep -Seconds 15
+                    Write-Host "Application wait completed."
                 '''
 
                 bat '"%DOCKER_COMPOSE%" ps'
@@ -211,9 +180,6 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 12. APPLICATION TEST
-        // ==========================================
         stage('Application Test') {
             steps {
                 echo '======================================'
@@ -239,9 +205,6 @@ pipeline {
         }
 
 
-        // ==========================================
-        // 13. FINAL CHECK
-        // ==========================================
         stage('Final Container Check') {
             steps {
                 echo '======================================'
@@ -254,9 +217,6 @@ pipeline {
     }
 
 
-    // ==============================================
-    // POST ACTIONS
-    // ==============================================
     post {
 
         success {
