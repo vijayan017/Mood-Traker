@@ -8,24 +8,7 @@ pipeline {
     stages {
 
         // ==========================================
-        // 1. CHECKOUT
-        // ==========================================
-        stage('Checkout') {
-            steps {
-                echo '======================================'
-                echo ' CHECKING OUT SOURCE CODE'
-                echo '======================================'
-
-                checkout scm
-
-                bat 'git status'
-                bat 'git log -1 --oneline'
-            }
-        }
-
-
-        // ==========================================
-        // 2. CREATE ENVIRONMENT FILE
+        // 1. CREATE ENVIRONMENT FILE
         // ==========================================
         stage('Create Environment File') {
             steps {
@@ -57,7 +40,7 @@ pipeline {
 
 
         // ==========================================
-        // 3. VERIFY DOCKER
+        // 2. VERIFY DOCKER
         // ==========================================
         stage('Verify Docker') {
             steps {
@@ -73,7 +56,7 @@ pipeline {
 
 
         // ==========================================
-        // 4. VERIFY COMPOSE FILE
+        // 3. VERIFY COMPOSE FILE
         // ==========================================
         stage('Verify Compose File') {
             steps {
@@ -87,7 +70,7 @@ pipeline {
 
 
         // ==========================================
-        // 5. BUILD DOCKER IMAGES
+        // 4. BUILD DOCKER IMAGES
         // ==========================================
         stage('Build Docker Images') {
             steps {
@@ -101,7 +84,7 @@ pipeline {
 
 
         // ==========================================
-        // 6. START DATABASE
+        // 5. START DATABASE SERVICES
         // ==========================================
         stage('Start Database Services') {
             steps {
@@ -111,13 +94,13 @@ pipeline {
 
                 bat '"%DOCKER_COMPOSE%" up -d mariadb redis'
 
-                echo 'MariaDB and Redis started.'
+                echo 'MariaDB and Redis started successfully.'
             }
         }
 
 
         // ==========================================
-        // 7. WAIT FOR DATABASE
+        // 6. WAIT FOR DATABASE
         // ==========================================
         stage('Wait for Database') {
             steps {
@@ -136,28 +119,25 @@ pipeline {
 
 
         // ==========================================
-        // 8. DATABASE STATUS
+        // 7. CHECK DATABASE
         // ==========================================
         stage('Check Database') {
             steps {
                 echo '======================================'
-                echo ' CHECKING DATABASE STATUS'
+                echo ' CHECKING DATABASE CONNECTION'
                 echo '======================================'
 
                 bat '"%DOCKER_COMPOSE%" ps mariadb redis'
 
                 bat '''
-                    "%DOCKER_COMPOSE%" exec -T mariadb mariadb \
-                    -ukintsugi \
-                    -pkintsugi_pw \
-                    -e "SELECT 1;"
+                    "%DOCKER_COMPOSE%" exec -T mariadb mariadb -ukintsugi -pkintsugi_pw -e "SELECT 1;"
                 '''
             }
         }
 
 
         // ==========================================
-        // 9. DATABASE MIGRATION
+        // 8. DATABASE MIGRATION
         // ==========================================
         stage('Database Migration') {
             steps {
@@ -165,7 +145,7 @@ pipeline {
                 echo ' RUNNING DATABASE MIGRATION'
                 echo '======================================'
 
-                echo 'Checking Alembic migration state...'
+                echo 'Checking Alembic current revision...'
 
                 bat '''
                     "%DOCKER_COMPOSE%" run --rm backend alembic current
@@ -181,7 +161,7 @@ pipeline {
 
 
         // ==========================================
-        // 10. START APPLICATION
+        // 9. START APPLICATION
         // ==========================================
         stage('Start Application') {
             steps {
@@ -191,13 +171,15 @@ pipeline {
 
                 bat '"%DOCKER_COMPOSE%" up -d backend celery-worker web'
 
-                echo 'Backend, Celery Worker and Web started.'
+                echo 'Backend started.'
+                echo 'Celery worker started.'
+                echo 'Web application started.'
             }
         }
 
 
         // ==========================================
-        // 11. CHECK CONTAINERS
+        // 10. CHECK CONTAINERS
         // ==========================================
         stage('Check Containers') {
             steps {
@@ -206,24 +188,12 @@ pipeline {
                 echo '======================================'
 
                 bat '"%DOCKER_COMPOSE%" ps'
-
-                echo '--------------------------------------'
-                echo ' BACKEND LOGS'
-                echo '--------------------------------------'
-
-                bat '"%DOCKER_COMPOSE%" logs --tail=50 backend'
-
-                echo '--------------------------------------'
-                echo ' WEB LOGS'
-                echo '--------------------------------------'
-
-                bat '"%DOCKER_COMPOSE%" logs --tail=50 web'
             }
         }
 
 
         // ==========================================
-        // 12. WAIT FOR APPLICATION
+        // 11. WAIT FOR APPLICATION
         // ==========================================
         stage('Wait for Application') {
             steps {
@@ -242,7 +212,7 @@ pipeline {
 
 
         // ==========================================
-        // 13. APPLICATION TEST
+        // 12. APPLICATION TEST
         // ==========================================
         stage('Application Test') {
             steps {
@@ -270,7 +240,7 @@ pipeline {
 
 
         // ==========================================
-        // 14. FINAL CONTAINER CHECK
+        // 13. FINAL CHECK
         // ==========================================
         stage('Final Container Check') {
             steps {
@@ -297,11 +267,11 @@ pipeline {
             bat '"%DOCKER_COMPOSE%" ps'
 
             echo '======================================'
-            echo ' APPLICATION IS RUNNING'
+            echo ' APPLICATION URLS'
             echo '======================================'
 
             echo 'Web Application: http://localhost:3000'
-            echo 'Backend API:      http://localhost:8000'
+            echo 'Backend API:     http://localhost:8000'
         }
 
 
@@ -310,20 +280,19 @@ pipeline {
             echo ' KINTSUGI DEPLOYMENT FAILED'
             echo '======================================'
 
-            echo 'Collecting Docker container status...'
+            echo 'Docker Container Status:'
 
             bat '''
                 "%DOCKER_COMPOSE%" ps
             '''
 
             echo '--------------------------------------'
-            echo ' DATABASE LOGS'
+            echo ' MARIADB LOGS'
             echo '--------------------------------------'
 
             bat '''
                 "%DOCKER_COMPOSE%" logs --tail=100 mariadb
             '''
-
 
             echo '--------------------------------------'
             echo ' REDIS LOGS'
@@ -333,7 +302,6 @@ pipeline {
                 "%DOCKER_COMPOSE%" logs --tail=100 redis
             '''
 
-
             echo '--------------------------------------'
             echo ' BACKEND LOGS'
             echo '--------------------------------------'
@@ -342,7 +310,6 @@ pipeline {
                 "%DOCKER_COMPOSE%" logs --tail=100 backend
             '''
 
-
             echo '--------------------------------------'
             echo ' CELERY LOGS'
             echo '--------------------------------------'
@@ -350,7 +317,6 @@ pipeline {
             bat '''
                 "%DOCKER_COMPOSE%" logs --tail=100 celery-worker
             '''
-
 
             echo '--------------------------------------'
             echo ' WEB LOGS'
